@@ -26,7 +26,7 @@ export const registerService = async (body: IBody) => {
     values ($1, $2, $3, $4)
     returning name, email, avatar, id, created_at
     `,
-    [body.name, body.email, body.password, body.avatar],
+    [body.name, body.email, hashedPassword, body.avatar],
   );
 
   return res.rows[0];
