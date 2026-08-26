@@ -5,7 +5,9 @@ import {
   profileService,
   refreshService,
   registerService,
+  updateProfileService,
 } from "../services/auth.service";
+import { apiErrors } from "../utils/apiErrors";
 
 export const registerController = async (
   req: Request<
@@ -93,7 +95,16 @@ export const profileController = async (
 ) => {
   try {
     const token = req.cookies.refreshToken;
+
+    if (!token) {
+      return next(apiErrors.unauthorized("Unauthorized"));
+    }
+
     const result = await profileService(token);
+
+    if (!result) {
+      return next(apiErrors.unauthorized("Unauthorized"));
+    }
 
     res.status(200).json({
       message: "Profile",
@@ -112,6 +123,102 @@ export const logoutController = async (
   try {
     const token = req.cookies.refreshToken;
     const result = await logoutService(token);
+
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      message: "logoutted",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateProfileController = async (
+  req: Request<
+    { id: string },
+    {},
+    {
+      name?: string;
+    }
+  >,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (Number.isNaN(id)) {
+      return next(apiErrors.badRequest("Invalid user id"));
+    }
+
+    const body = req.body;
+
+    const avatar = req.file ? `/uploads/${req.file.filename}` : undefined;
+
+    const result = await updateProfileService(id, {
+      ...body,
+      avatar,
+    });
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const forgotPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const token = req.cookies.refreshToken;
+    const result = await logoutService(token);
+
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      message: "logoutted",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const verifyPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const token = req.cookies.refreshToken;
+    const result = await logoutService(token);
+
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      message: "logoutted",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const resetPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const token = req.cookies.refreshToken;
+    const result = await logoutService(token);
+
+    res.clearCookie("refreshToken");
 
     res.status(200).json({
       message: "logoutted",

@@ -3,6 +3,9 @@ import { pool } from "../plugins/pg";
 import { apiErrors } from "../utils/apiErrors";
 import { generateTokens, refresh_secret } from "../utils/generateTokens";
 import jwt from "jsonwebtoken";
+import { string } from "zod";
+import crypto from "crypto";
+import { templateService } from "./gmail.service";
 
 export interface IBody {
   name: string;
@@ -17,7 +20,7 @@ export interface ILoginBody {
 }
 
 export const registerService = async (body: IBody) => {
-  const hashedPassword = bcrypt.hash(body.password, 8);
+  const hashedPassword = await bcrypt.hash(body.password, 8);
 
   const res = await pool.query(
     `
@@ -40,6 +43,10 @@ export const loginService = async (body: ILoginBody) => {
     [body.email],
   );
 
+  if (!res.rows[0]) {
+    throw apiErrors.badRequest("User with this email not found");
+  }
+
   const isMatchedPassword = await bcrypt.compare(
     body.password,
     res.rows[0].password,
@@ -56,7 +63,7 @@ export const loginService = async (body: ILoginBody) => {
   await pool.query(
     `
     update users
-    set refreshToken = $1
+    set refresh_token = $1
     where email = $2
     `,
     [tokens.refreshToken, body.email],
@@ -130,4 +137,109 @@ export const logoutService = async (refreshToken: number) => {
   );
 
   return res.rows[0];
+};
+
+export const updateProfileService = async (
+  id: number,
+  body: {
+    name?: string;
+    avatar?: any;
+  },
+) => {
+  const res = await pool.query(
+    `
+      UPDATE users
+      SET
+        name = COALESCE($1, name),
+        avatar = COALESCE($2, avatar),
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING
+        id,
+        name,
+        email,
+        avatar,
+        created_at,
+        google_id
+    `,
+    [body.name, body.avatar, id],
+  );
+
+  if (!res.rows[0]) {
+    throw apiErrors.notFound("User not found");
+  }
+
+  return res.rows[0];
+};
+
+export const forgotPasswordService = async (email: string) => {
+  const res = await pool.query(
+    `
+    select * from users
+    where email = $1 
+    `,
+    [email],
+  );
+
+  if (!res.rows[0]) {
+    throw apiErrors.notFound("User not found");
+  }
+
+  const reset_code = crypto.randomInt(100000, 1000000);
+  // const reset_code = Math.floor(100000 + Math.random() * 900000);
+
+  await pool.query(
+    `
+    update users
+    set reset_code = $1
+    where email = $2
+    `,
+    [reset_code, email],
+  );
+
+  await templateService(email, reset_code);
+};
+
+export const verifyPasswordService = async (email: string, code: number) => {
+  const res = await pool.query(
+    `
+    select * from users
+    where email = $1 and reset_code = $2
+    `,
+    [email, code],
+  );
+
+  if (!res.rows[0]) {
+    throw apiErrors.notFound("Invalid reset code");
+  }
+
+  return true;
+};
+export const resetPasswordService = async (
+  email: string,
+  code: number,
+  newPassword: string,
+) => {
+  const res = await pool.query(
+    `
+    select * from users
+    where email = $1 
+    `,
+    [email],
+  );
+
+  if (!res.rows[0]) {
+    throw apiErrors.badRequest("Invalid reset code");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 8);
+
+  await pool.query(
+    `
+    update users
+    set password = $1, reset_code = null
+    where email = $2
+    `,
+    [hashedPassword, email],
+  );
 };
