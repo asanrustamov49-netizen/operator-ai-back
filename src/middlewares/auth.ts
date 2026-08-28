@@ -1,22 +1,34 @@
+import jwt from "jsonwebtoken";
 import { NextFunction, Request, Response } from "express";
 import { apiErrors } from "../utils/apiErrors";
-import jwt from "jsonwebtoken";
-import { access_secret, refresh_secret } from "../utils/generateTokens";
+import { access_secret } from "../utils/generateTokens";
+
+//! auth middleware added try/catch
 
 export const authMiddleware = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) throw apiErrors.unauthorized("unauthorized");
+  try {
+    const authHeader = req.headers.authorization;
 
-  const token = authHeader.split(" ")[1]; // "Bearer token"
+    if (!authHeader) {
+      return next(apiErrors.unauthorized("Unauthorized"));
+    }
 
-  if (!token) throw apiErrors.unauthorized("No token");
+    const token = authHeader.split(" ")[1];
 
-  const decoded = jwt.verify(token, access_secret);
-  req.user = decoded;
+    if (!token) {
+      return next(apiErrors.unauthorized("No token"));
+    }
 
-  next()
+    const decoded = jwt.verify(token, access_secret);
+
+    req.user = decoded;
+
+    return next();
+  } catch (error) {
+    return next(apiErrors.unauthorized("Invalid or expired token"));
+  }
 };

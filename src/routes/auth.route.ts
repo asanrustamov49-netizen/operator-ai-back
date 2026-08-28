@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   forgotPasswordController,
+  getGmailController,
   loginController,
   logoutController,
   profileController,
@@ -13,9 +14,9 @@ import {
 import { uploadMiddleware } from "../middlewares/upload";
 import { authMiddleware } from "../middlewares/auth";
 import passport from "passport";
-import { googleCallBack } from "../middlewares/googleCallBack";
 import { validate } from "../middlewares/validation";
 import { registerSchema, loginSchema } from "../validation/auth.validate";
+import { googleCallback } from "../middlewares/googleCallBack";
 
 const router = Router();
 router.post(
@@ -28,18 +29,26 @@ router.post("/login", validate(loginSchema), loginController);
 router.post("/refresh", authMiddleware, refreshController);
 router.get("/profile", authMiddleware, profileController);
 router.post("/logout", logoutController);
+router.get("/gmail", authMiddleware, getGmailController); // gmail get
 router.get(
   "/google",
   passport.authenticate("google", {
-    scope: ["profile", "email"],
+    scope: [
+      "profile",
+      "email",
+      "https://www.googleapis.com/auth/gmail.readonly", // доступ для гмаил
+    ],
+    accessType: "offline",
+    prompt: "consent",
   }),
 );
+
 router.get(
   "/google-callback",
   passport.authenticate("google", {
     session: false,
   }),
-  googleCallBack,
+  googleCallback,
 );
 router.patch(
   "/profile/:id",

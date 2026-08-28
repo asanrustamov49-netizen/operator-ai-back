@@ -217,7 +217,6 @@ export const verifyPasswordService = async (email: string, code: number) => {
 };
 export const resetPasswordService = async (
   email: string,
-  code: number,
   newPassword: string,
 ) => {
   const res = await pool.query(

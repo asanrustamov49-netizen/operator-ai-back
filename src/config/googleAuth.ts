@@ -27,15 +27,18 @@ passport.use(
         );
 
         if (googleExist.rows[0]) {
-          await pool.query(
+          //! updated tokens to DB
+          const updatedUser = await pool.query(
             `
-            update users
-            set refresh_token = $1
-            where id = $2
-            `,
-            [refreshToken, googleExist.rows[0].id],
+          update users
+          set google_refresh = $1, google_access = $2
+          where google_id = $3
+          returning *
+          `,
+            [refreshToken, accessToken, googleExist.rows[0].google_id],
           );
-          return done(null, googleExist.rows[0]);
+          //! updated tokens to DB
+          return done(null, updatedUser.rows[0]);
         }
         // email has in db
         const emailExist = await pool.query(

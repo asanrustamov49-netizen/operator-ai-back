@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { logger } from "./middlewares/logger";
 import cors from "cors";
@@ -15,7 +16,7 @@ const createApi = () => {
   app.use(
     cors({
       origin: "http://localhost:3000",
-      credentials: true, 
+      credentials: true,
     }),
   );
   app.use(cookieParser());

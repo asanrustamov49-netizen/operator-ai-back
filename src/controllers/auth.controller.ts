@@ -1,13 +1,18 @@
 import { NextFunction, Request, Response } from "express";
 import {
+  forgotPasswordService,
   loginService,
   logoutService,
   profileService,
   refreshService,
   registerService,
+  resetPasswordService,
   updateProfileService,
+  verifyPasswordService,
 } from "../services/auth.service";
 import { apiErrors } from "../utils/apiErrors";
+import { getGmailMessages } from "../services/gmail.service";
+import { pool } from "../plugins/pg";
 
 export const registerController = async (
   req: Request<
@@ -172,59 +177,100 @@ export const updateProfileController = async (
 };
 
 export const forgotPasswordController = async (
-  req: Request,
+  req: Request<{}, {}, { email: string }>,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const token = req.cookies.refreshToken;
-    const result = await logoutService(token);
-
-    res.clearCookie("refreshToken");
+    const body = req.body;
+    await forgotPasswordService(body.email);
 
     res.status(200).json({
-      message: "logoutted",
-      data: result,
+      message: "forgot sended",
     });
   } catch (error) {
     next(error);
   }
 };
 export const verifyPasswordController = async (
-  req: Request,
+  req: Request<{}, {}, { email: string; code: number }>,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const token = req.cookies.refreshToken;
-    const result = await logoutService(token);
-
-    res.clearCookie("refreshToken");
+    const body = req.body;
+    await verifyPasswordService(body.email, body.code);
 
     res.status(200).json({
-      message: "logoutted",
-      data: result,
+      message: "verified",
     });
   } catch (error) {
     next(error);
   }
 };
 export const resetPasswordController = async (
+  req: Request<{}, {}, { email: string; newPassword: string }>,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const body = req.body;
+    await resetPasswordService(body.email, body.newPassword);
+
+    res.status(200).json({
+      message: "reseted",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getGmailController = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const token = req.cookies.refreshToken;
-    const result = await logoutService(token);
+    const userId = (req.user as { id?: string | number } | undefined)?.id;
 
-    res.clearCookie("refreshToken");
+    // токены для доступа в gmail храним в бд
 
-    res.status(200).json({
-      message: "logoutted",
-      data: result,
+    const result = await pool.query(
+      `
+      select google_refresh, google_access
+      from users
+      where id = $1
+      `,
+      [userId],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (!user.google_access) {
+      return res.status(400).json({
+        message: "Google account is not connected",
+      });
+    }
+
+    const messages = await getGmailMessages(
+      user.google_access,
+      user.google_refresh,
+    );
+
+    return res.status(200).json({
+      message: "Gmail messages",
+      data: messages,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.log("GMAIL ERROR:");
+    console.log(error.response?.data);
+    console.log(error.message);
     next(error);
   }
 };

@@ -1,20 +1,44 @@
 import { NextFunction, Request, Response } from "express";
+import { generateTokens } from "../utils/generateTokens";
+import { pool } from "../plugins/pg";
 
-export const googleCallBack = async (
+//! updated google-callback
+//! with generation tokens
+//! data transfer with URL
+
+export const googleCallback = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const user = req.user;
+    const user: any = req.user;
 
     if (!user) {
       return res.status(401).json({
-        message: "Google login failed",
+        message: "Google not logged in",
       });
     }
 
-    return res.redirect("http://localhost:3000/");
+    const tokens = generateTokens({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    });
+
+    await pool.query(
+      `
+      update users
+      set refresh_token = $1
+      where id = $2
+      `,
+      [tokens.refreshToken, user.id],
+    );
+
+    // временно для разработки
+    return res.redirect(
+      `http://localhost:3000/google-success?accessToken=${tokens.accessToken}`,
+    );
   } catch (error) {
     next(error);
   }
