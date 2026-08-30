@@ -28,14 +28,20 @@ export const googleCallback = async (
 
     await pool.query(
       `
-      update users
-      set refresh_token = $1
-      where id = $2
+      UPDATE users
+      SET refresh_token = $1
+      WHERE id = $2
       `,
       [tokens.refreshToken, user.id],
     );
 
-    // временно для разработки
+    // ⭐ ГЛАВНОЕ
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
     return res.redirect(
       `http://localhost:3000/google-success?accessToken=${tokens.accessToken}`,
     );

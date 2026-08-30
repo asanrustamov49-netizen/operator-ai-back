@@ -209,16 +209,29 @@ export const verifyPasswordController = async (
   }
 };
 export const resetPasswordController = async (
-  req: Request<{}, {}, { email: string; newPassword: string }>,
+  req: Request<{}, {}, { email: string; code: number; newPassword: string }>,
   res: Response,
   next: NextFunction,
 ) => {
   try {
     const body = req.body;
-    await resetPasswordService(body.email, body.newPassword);
+    const { user, token } = await resetPasswordService(
+      body.email,
+      body.code,
+      body.newPassword,
+    );
+
+    res.cookie("refreshToken", token.refreshToken, {
+      httpOnly: true,
+      secure: false,
+    });
 
     res.status(200).json({
-      message: "reseted",
+      message: "Password reset successfully",
+      user: {
+        user,
+        accessToken: token.accessToken,
+      },
     });
   } catch (error) {
     next(error);
@@ -271,6 +284,24 @@ export const getGmailController = async (
     console.log("GMAIL ERROR:");
     console.log(error.response?.data);
     console.log(error.message);
+    next(error);
+  }
+};
+
+import { testEmail } from "../services/gmail.service";
+
+export const testEmailController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    await testEmail();
+
+    res.status(200).json({
+      message: "Email sent",
+    });
+  } catch (error) {
     next(error);
   }
 };

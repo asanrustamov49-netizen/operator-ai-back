@@ -193,6 +193,7 @@ export const forgotPasswordService = async (email: string) => {
     update users
     set reset_code = $1
     where email = $2
+    returning *
     `,
     [reset_code, email],
   );
@@ -215,16 +216,15 @@ export const verifyPasswordService = async (email: string, code: number) => {
 
   return true;
 };
+
 export const resetPasswordService = async (
   email: string,
+  code: number,
   newPassword: string,
 ) => {
   const res = await pool.query(
-    `
-    select * from users
-    where email = $1 
-    `,
-    [email],
+    `select * from users where email = $1 and reset_code = $2`,
+    [email, code],
   );
 
   if (!res.rows[0]) {
@@ -233,12 +233,24 @@ export const resetPasswordService = async (
 
   const hashedPassword = await bcrypt.hash(newPassword, 8);
 
-  await pool.query(
+  const tokens = generateTokens({
+    id: res.rows[0].id,
+    name: res.rows[0].name,
+    email: res.rows[0].email,
+  });
+
+  const updated = await pool.query(
     `
     update users
-    set password = $1, reset_code = null
-    where email = $2
+    set password = $1, reset_code = null, refresh_token = $2
+    where email = $3
+    returning name, email, avatar, id
     `,
-    [hashedPassword, email],
+    [hashedPassword, tokens.refreshToken, email],
   );
+
+  return {
+    user: updated.rows[0],
+    token: tokens,
+  };
 };

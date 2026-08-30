@@ -12,7 +12,7 @@ const createApi = () => {
   const app = express();
   app.use(express.json());
   app.use("/uploads", express.static("src/upload"));
-  passport.initialize();
+  app.use(passport.initialize());
   app.use(
     cors({
       origin: "http://localhost:3000",

@@ -8,6 +8,7 @@ import {
   refreshController,
   registerController,
   resetPasswordController,
+  testEmailController,
   updateProfileController,
   verifyPasswordController,
 } from "../controllers/auth.controller";
@@ -55,9 +56,10 @@ router.patch(
   uploadMiddleware.single("avatar"),
   updateProfileController,
 );
-router.post("forgot-password", forgotPasswordController);
-router.post("verify-password", verifyPasswordController);
-router.post("reset-password", resetPasswordController);
+router.post("/forgot-password", forgotPasswordController);
+router.post("/verify-password", verifyPasswordController);
+router.post("/reset-password", resetPasswordController);
 // router.get("/google-me")
+router.get("/test-email", testEmailController);
 
 export default router;

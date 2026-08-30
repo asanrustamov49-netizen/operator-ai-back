@@ -4,14 +4,14 @@ export const sender = nodemailer.createTransport({
   service: "gmail",
 
   auth: {
-    user: process.env.EMAIL_USER!,
-    pass: process.env.EMAIL_PASSWORD!,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
   },
 });
 
 export const templateService = async (email: string, code: number) => {
   await sender.sendMail({
-    from: `"Operator AI" <${process.env.EMAIL_USER!}>`,
+    from: `"Operator AI" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "Password reset code",
     html: `
@@ -73,6 +73,7 @@ export const getGmailMessages = async (
   const list = await gmail.users.messages.list({
     userId: "me",
     maxResults: 20,
+    q: "is:unread",
   });
 
   const messages = await Promise.all(
@@ -88,14 +89,40 @@ export const getGmailMessages = async (
     }),
   );
 
-  return messages;
+  const formattedMessages = messages.map((message) => {
+    const headers = message.payload?.headers || [];
+
+    const getHeader = (name: string) => {
+      return (
+        headers.find(
+          (header) => header.name?.toLowerCase() === name.toLowerCase(),
+        )?.value || ""
+      );
+    };
+
+    return {
+      id: message.id,
+      threadId: message.threadId,
+
+      sender: getHeader("From"),
+      recipient: getHeader("To"),
+      subject: getHeader("Subject"),
+      date: getHeader("Date"),
+
+      preview: message.snippet || "",
+
+      isUnread: message.labelIds?.includes("UNREAD") || false,
+    };
+  });
+
+  return formattedMessages;
 };
 
 export const testEmail = async () => {
   try {
     const info = await sender.sendMail({
       from: `"Operator AI" <${process.env.EMAIL_USER}>`,
-      to: "@gmail.com",
+      to: "amanturrustamov18@gmail.com",
       subject: "Operator AI test",
       text: "Если ты получил это письмо — Gmail работает!",
     });
