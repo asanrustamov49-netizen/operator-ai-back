@@ -16,7 +16,7 @@ import { uploadMiddleware } from "../middlewares/upload";
 import { authMiddleware } from "../middlewares/auth";
 import passport from "passport";
 import { validate } from "../middlewares/validation";
-import { registerSchema, loginSchema } from "../validation/auth.validate";
+import { registerSchema, loginSchema } from "../validation/auth.schema";
 import { googleCallback } from "../middlewares/googleCallBack";
 
 const router = Router();

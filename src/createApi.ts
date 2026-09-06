@@ -3,6 +3,7 @@ import express from "express";
 import { logger } from "./middlewares/logger";
 import cors from "cors";
 import authRouter from "./routes/auth.route";
+import notesRouter from "./routes/notes.route";
 import { errorHandler } from "./middlewares/errorHandler";
 import cookieParser from "cookie-parser";
 import passport from "passport";
@@ -23,6 +24,7 @@ const createApi = () => {
   app.use(logger);
 
   app.use("/auth", authRouter);
+  app.use("/notes", notesRouter);
 
   app.use(errorHandler);
   return app;
