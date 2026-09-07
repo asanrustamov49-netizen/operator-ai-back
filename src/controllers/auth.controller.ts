@@ -239,21 +239,34 @@ export const resetPasswordController = async (
 };
 
 export const getGmailController = async (
-  req: Request,
+  req: Request<
+    {},
+    {},
+    {},
+    {
+      search?: string;
+      label?: "INBOX" | "STARRED" | "SENT";
+      pageToken?: string;
+    }
+  >,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const userId = (req.user as { id?: string | number } | undefined)?.id;
+    if (!req.user) {
+      throw apiErrors.unauthorized("Unauthorized");
+    }
 
-    // токены для доступа в gmail храним в бд
+    const userId = req.user.id;
+
+    const { search, label, pageToken } = req.query;
 
     const result = await pool.query(
       `
-      select google_refresh, google_access
-      from users
-      where id = $1
-      `,
+  SELECT google_refresh, google_access
+  FROM users
+  WHERE id = $1
+  `,
       [userId],
     );
 
@@ -271,19 +284,31 @@ export const getGmailController = async (
       });
     }
 
-    const messages = await getGmailMessages(
-      user.google_access,
-      user.google_refresh,
-    );
+    const options = {
+      ...(search && { search }),
+      ...(label && { label }),
+      ...(pageToken && { pageToken }),
+    };
+
+    const { messages, nextPageToken, resultSizeEstimate } =
+      await getGmailMessages(
+        user.google_access,
+        user.google_refresh,
+        userId,
+        options,
+      );
 
     return res.status(200).json({
       message: "Gmail messages",
       data: messages,
+      nextPageToken,
+      resultSizeEstimate,
     });
   } catch (error: any) {
     console.log("GMAIL ERROR:");
     console.log(error.response?.data);
     console.log(error.message);
+
     next(error);
   }
 };

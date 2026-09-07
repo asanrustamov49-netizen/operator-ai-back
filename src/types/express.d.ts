@@ -1,8 +1,12 @@
-import { IPayload } from "../utils/generateTokens";
-
+// src/types/express.d.ts
 declare global {
   namespace Express {
-    interface User extends IPayload {}
+    interface User {
+      id: number;
+      name: string;
+      email: string;
+      google_id?: number;
+    }
   }
 }
 

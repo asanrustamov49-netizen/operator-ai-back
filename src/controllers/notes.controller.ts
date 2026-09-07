@@ -5,6 +5,7 @@ import {
   getOneNoteService,
   deleteNoteService,
   updateNoteService,
+  toggleFavoriteService,
 } from "../services/notes.service";
 import { apiErrors } from "../utils/apiErrors";
 import { parseId } from "../utils/parseId";
@@ -35,14 +36,15 @@ export const postNoteController = async (
 };
 
 export const getNotesController = async (
-  req: Request,
+  req: Request<{}, {}, {}, { search?: string }>,
   res: Response,
   next: NextFunction,
 ) => {
   try {
     if (!req.user) throw apiErrors.unauthorized("Unauthorized");
 
-    const result = await getNotesService(req.user.id);
+    const { search } = req.query;
+    const result = await getNotesService(req.user.id, search);
 
     res.status(200).json({
       message: "Notes received successfully",
@@ -118,6 +120,30 @@ export const updateNoteController = async (
     res.status(200).json({
       message: "Note updated successfully",
       data: result, // <-- переименовано с updated на data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleFavoriteController = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
+    const id = parseId(req.params.id);
+    const result = await toggleFavoriteService(id, req.user.id);
+
+    if (!result) throw apiErrors.notFound("Note not found");
+
+    res.status(200).json({
+      message: result.is_favorite
+        ? "Note added to favorites"
+        : "Note removed from favorites",
+      data: result,
     });
   } catch (error) {
     next(error);

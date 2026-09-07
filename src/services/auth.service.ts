@@ -1,11 +1,11 @@
 import bcrypt from "bcryptjs";
 import { pool } from "../plugins/pg";
 import { apiErrors } from "../utils/apiErrors";
-import { generateTokens, refresh_secret } from "../utils/generateTokens";
 import jwt from "jsonwebtoken";
 import { string } from "zod";
 import crypto from "crypto";
 import { templateService } from "./gmail.service";
+import { generateTokens, refresh_secret } from "../utils/generateTokens";
 
 export interface IBody {
   name: string;

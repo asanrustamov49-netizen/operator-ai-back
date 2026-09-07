@@ -17,7 +17,21 @@ export const postNoteService = async (body: IBody, userId: number) => {
 
   return result.rows[0];
 };
-export const getNotesService = async (userId: number) => {
+export const getNotesService = async (userId: number, search?: string) => {
+  if (search && search.trim()) {
+    const result = await pool.query(
+      `
+        select * from notes
+        where user_id = $1
+          and (title ilike $2 or content ilike $2)
+        order by created_at desc
+      `,
+      [userId, `%${search.trim()}%`],
+    );
+
+    return result.rows;
+  }
+
   const result = await pool.query(
     `
       select * from notes
@@ -65,6 +79,20 @@ export const updateNoteService = async (
       returning *
     `,
     [newBody.title, newBody.content, id, userId],
+  );
+
+  return result.rows[0];
+};
+
+export const toggleFavoriteService = async (id: number, userId: number) => {
+  const result = await pool.query(
+    `
+      update notes
+      set is_favorite = not is_favorite, updated_at = NOW()
+      where id = $1 and user_id = $2
+      returning *
+    `,
+    [id, userId],
   );
 
   return result.rows[0];

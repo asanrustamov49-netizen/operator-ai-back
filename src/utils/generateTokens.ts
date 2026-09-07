@@ -7,8 +7,8 @@ export interface IPayload {
   google_id?: number;
 }
 
-export const access_secret = "access_webops";
-export const refresh_secret = "refresh_webops";
+export const access_secret = process.env.ACCESS_SECRET!;
+export const refresh_secret = process.env.REFRESH_SECRET!;
 
 export const generateTokens = (payload: IPayload) => {
   const accessToken = jwt.sign(payload, access_secret, {

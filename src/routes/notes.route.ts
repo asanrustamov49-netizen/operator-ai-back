@@ -5,15 +5,28 @@ import {
   getOneNoteController,
   deleteNoteController,
   updateNoteController,
+  toggleFavoriteController,
 } from "../controllers/notes.controller";
 import { validate } from "../middlewares/validation";
-import { createNoteSchema, updateNoteSchema } from "../validation/notes.schema";
+import { createNoteSchema, updateNoteSchema } from "../schemas/notes.schema";
+import { authMiddleware } from "../middlewares/auth";
 
 const router = Router();
-router.post("/", validate(createNoteSchema), postNoteController);
-router.get("/", getNotesController);
-router.get("/:id", getOneNoteController);
-router.delete("/:id", deleteNoteController);
-router.patch("/:id", validate(updateNoteSchema), updateNoteController);
+router.post(
+  "/",
+  authMiddleware,
+  validate(createNoteSchema),
+  postNoteController,
+);
+router.get("/", authMiddleware, getNotesController);
+router.get("/:id", authMiddleware, getOneNoteController);
+router.delete("/:id", authMiddleware, deleteNoteController);
+router.patch(
+  "/:id",
+  authMiddleware,
+  validate(updateNoteSchema),
+  updateNoteController,
+);
+router.patch("/:id/favorite", authMiddleware, toggleFavoriteController);
 
 export default router;

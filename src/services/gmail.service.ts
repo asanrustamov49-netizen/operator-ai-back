@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import nodemailer from "nodemailer";
+import { pool } from "../plugins/pg";
+
 export const sender = nodemailer.createTransport({
   service: "gmail",
 
@@ -51,8 +53,14 @@ export const templateService = async (email: string, code: number) => {
 };
 
 export const getGmailMessages = async (
-  accessToken: any,
-  refreshToken?: any,
+  accessToken: string,
+  refreshToken: string | undefined,
+  userId: number,
+  options: {
+    search?: string;
+    label?: "INBOX" | "STARRED" | "SENT";
+    pageToken?: string;
+  } = {},
 ) => {
   const auth = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID!,
@@ -62,7 +70,28 @@ export const getGmailMessages = async (
 
   auth.setCredentials({
     access_token: accessToken,
-    refresh_token: refreshToken,
+    refresh_token: refreshToken ?? null,
+  });
+
+  // Если Google обновит access_token — сохраняем новый токен в БД
+  auth.on("tokens", async (tokens) => {
+    try {
+      if (tokens.access_token) {
+        await pool.query(`UPDATE users SET google_access = $1 WHERE id = $2`, [
+          tokens.access_token,
+          userId,
+        ]);
+      }
+
+      if (tokens.refresh_token) {
+        await pool.query(`UPDATE users SET google_refresh = $1 WHERE id = $2`, [
+          tokens.refresh_token,
+          userId,
+        ]);
+      }
+    } catch (error) {
+      console.error("Failed to persist refreshed Google tokens:", error);
+    }
   });
 
   const gmail = google.gmail({
@@ -70,14 +99,24 @@ export const getGmailMessages = async (
     auth,
   });
 
+  const labelIds = [options.label ?? "INBOX"];
+
   const list = await gmail.users.messages.list({
     userId: "me",
-    maxResults: 20,
-    q: "is:unread",
+    maxResults: 10,
+    labelIds,
+
+    ...(options.pageToken && {
+      pageToken: options.pageToken,
+    }),
+
+    ...(options.search && {
+      q: options.search,
+    }),
   });
 
   const messages = await Promise.all(
-    (list.data.messages || []).map(async (message) => {
+    (list.data.messages ?? []).map(async (message) => {
       const result = await gmail.users.messages.get({
         userId: "me",
         id: message.id!,
@@ -90,32 +129,30 @@ export const getGmailMessages = async (
   );
 
   const formattedMessages = messages.map((message) => {
-    const headers = message.payload?.headers || [];
+    const headers = message.payload?.headers ?? [];
 
-    const getHeader = (name: string) => {
-      return (
-        headers.find(
-          (header) => header.name?.toLowerCase() === name.toLowerCase(),
-        )?.value || ""
-      );
-    };
+    const getHeader = (name: string) =>
+      headers.find(
+        (header) => header.name?.toLowerCase() === name.toLowerCase(),
+      )?.value ?? "";
 
     return {
       id: message.id,
       threadId: message.threadId,
-
       sender: getHeader("From"),
       recipient: getHeader("To"),
       subject: getHeader("Subject"),
       date: getHeader("Date"),
-
-      preview: message.snippet || "",
-
-      isUnread: message.labelIds?.includes("UNREAD") || false,
+      preview: message.snippet ?? "",
+      isUnread: message.labelIds?.includes("UNREAD") ?? false,
     };
   });
 
-  return formattedMessages;
+  return {
+    messages: formattedMessages,
+    nextPageToken: list.data.nextPageToken ?? null,
+    resultSizeEstimate: list.data.resultSizeEstimate ?? 0,
+  };
 };
 
 export const testEmail = async () => {
