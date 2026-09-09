@@ -92,7 +92,7 @@ export const deleteNoteController = async (
 
     res.status(200).json({
       message: "Note deleted successfully",
-      data: result, // <-- переименовано с deleted на data
+      data: result, 
     });
   } catch (error) {
     next(error);
@@ -119,7 +119,7 @@ export const updateNoteController = async (
 
     res.status(200).json({
       message: "Note updated successfully",
-      data: result, // <-- переименовано с updated на data
+      data: result, 
     });
   } catch (error) {
     next(error);

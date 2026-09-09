@@ -6,6 +6,7 @@ import { string } from "zod";
 import crypto from "crypto";
 import { templateService } from "./gmail.service";
 import { generateTokens, refresh_secret } from "../utils/generateTokens";
+import { google } from "googleapis";
 
 export interface IBody {
   name: string;
@@ -254,3 +255,59 @@ export const resetPasswordService = async (
     token: tokens,
   };
 };
+
+// calendar
+
+export const getCalendarEvents = async (
+  accessToken: any,
+  refreshToken?: any,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const result = await calendar.events.list({
+    calendarId: "primary",
+    timeMin: new Date(new Date().setDate(1)).toISOString(), // с начала месяца
+    maxResults: 100,
+    singleEvents: true,
+    orderBy: "startTime",
+  });
+
+  return result.data.items || [];
+};
+
+// drive
+export const getDriveFiles = async (accessToken: any, refreshToken?: any) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  const result = await drive.files.list({
+    pageSize: 50,
+    orderBy: "modifiedTime desc",
+    fields:
+      "files(id, name, mimeType, iconLink, webViewLink, modifiedTime, size)",
+  });
+
+  return result.data.files || [];
+};
+// drive

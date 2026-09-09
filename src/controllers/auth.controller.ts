@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import {
   forgotPasswordService,
+  getCalendarEvents,
+  getDriveFiles,
   loginService,
   logoutService,
   profileService,
@@ -330,3 +332,78 @@ export const testEmailController = async (
     next(error);
   }
 };
+
+// calendar
+
+export const getCalendarController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `select google_refresh, google_access from users where id = $1`,
+      [userId],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.google_access) {
+      return res
+        .status(400)
+        .json({ message: "Google account is not connected" });
+    }
+
+    const events = await getCalendarEvents(
+      user.google_access,
+      user.google_refresh,
+    );
+
+    return res.status(200).json({ message: "Calendar events", data: events });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// drive
+export const getDriveController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (req.user as { id?: number } | undefined)?.id;
+
+    const result = await pool.query(
+      `select google_refresh, google_access from users where id = $1`,
+      [userId],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.google_access) {
+      return res
+        .status(400)
+        .json({ message: "Google account is not connected" });
+    }
+
+    const files = await getDriveFiles(user.google_access, user.google_refresh);
+
+    return res.status(200).json({ message: "Drive files", data: files });
+  } catch (error) {
+    next(error);
+  }
+};
+// drive

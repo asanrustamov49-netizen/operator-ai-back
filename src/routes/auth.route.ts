@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
   forgotPasswordController,
+  getCalendarController,
+  getDriveController,
   getGmailController,
   loginController,
   logoutController,
@@ -38,6 +40,8 @@ router.get(
       "profile",
       "email",
       "https://www.googleapis.com/auth/gmail.readonly", // доступ для гмаил
+      "https://www.googleapis.com/auth/calendar.readonly", // доступ для календарь
+      "https://www.googleapis.com/auth/drive.readonly", // доступ для драйв
     ],
     accessType: "offline",
     prompt: "consent",
@@ -61,5 +65,8 @@ router.post("/verify-password", verifyPasswordController);
 router.post("/reset-password", resetPasswordController);
 // router.get("/google-me")
 router.get("/test-email", testEmailController);
+router.get("/calendar", authMiddleware, getCalendarController); // api/auth/calendar
+router.get("/drive", authMiddleware, getDriveController);
+
 
 export default router;
