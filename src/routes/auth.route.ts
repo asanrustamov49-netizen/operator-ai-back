@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  createDriveFolderController,
   forgotPasswordController,
   getCalendarController,
   getDriveController,
@@ -12,6 +13,7 @@ import {
   resetPasswordController,
   testEmailController,
   updateProfileController,
+  uploadDriveFileController,
   verifyPasswordController,
 } from "../controllers/auth.controller";
 import { uploadMiddleware } from "../middlewares/upload";
@@ -67,6 +69,12 @@ router.post("/reset-password", resetPasswordController);
 router.get("/test-email", testEmailController);
 router.get("/calendar", authMiddleware, getCalendarController); // api/auth/calendar
 router.get("/drive", authMiddleware, getDriveController);
-
+router.post(
+  "/upload",
+  authMiddleware,
+  uploadMiddleware.single("file"),
+  uploadDriveFileController,
+);
+router.post("/folder", authMiddleware, createDriveFolderController);
 
 export default router;

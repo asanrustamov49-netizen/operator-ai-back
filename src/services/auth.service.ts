@@ -287,7 +287,11 @@ export const getCalendarEvents = async (
 };
 
 // drive
-export const getDriveFiles = async (accessToken: any, refreshToken?: any) => {
+export const getDriveFiles = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  search?: string,
+) => {
   const auth = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID!,
     process.env.GOOGLE_CLIENT_SECRET!,
@@ -296,18 +300,91 @@ export const getDriveFiles = async (accessToken: any, refreshToken?: any) => {
 
   auth.setCredentials({
     access_token: accessToken,
-    refresh_token: refreshToken,
+    refresh_token: refreshToken ?? null,
   });
 
   const drive = google.drive({ version: "v3", auth });
 
+  // экранируем одинарные кавычки, чтобы не сломать синтаксис Drive API
+  const escapedSearch = search?.trim().replace(/'/g, "\\'");
+
+  const queryParts = ["trashed = false"];
+  if (escapedSearch) {
+    queryParts.push(`name contains '${escapedSearch}'`);
+  }
+
   const result = await drive.files.list({
     pageSize: 50,
     orderBy: "modifiedTime desc",
+    q: queryParts.join(" and "),
     fields:
-      "files(id, name, mimeType, iconLink, webViewLink, modifiedTime, size)",
+      "files(id, name, mimeType, iconLink, webViewLink, modifiedTime, size, owners(displayName,me))",
   });
 
   return result.data.files || [];
 };
 // drive
+
+import fs from "fs";
+
+export const uploadDriveFile = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  filePath: string,
+  fileName: string,
+  mimeType: string,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null
+  });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  const response = await drive.files.create({
+    requestBody: { name: fileName },
+    media: {
+      mimeType,
+      body: fs.createReadStream(filePath),
+    },
+    fields:
+      "id, name, mimeType, iconLink, webViewLink, modifiedTime, size, owners(displayName,me)",
+  });
+
+  return response.data;
+};
+
+export const createDriveFolder = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  name: string,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null,
+  });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  const response = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+    },
+    fields: "id, name, mimeType, webViewLink, modifiedTime",
+  });
+
+  return response.data;
+};

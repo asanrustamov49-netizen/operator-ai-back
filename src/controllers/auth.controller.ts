@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import {
+  createDriveFolder,
   forgotPasswordService,
   getCalendarEvents,
   getDriveFiles,
@@ -10,6 +11,7 @@ import {
   registerService,
   resetPasswordService,
   updateProfileService,
+  uploadDriveFile,
   verifyPasswordService,
 } from "../services/auth.service";
 import { apiErrors } from "../utils/apiErrors";
@@ -375,12 +377,15 @@ export const getCalendarController = async (
 
 // drive
 export const getDriveController = async (
-  req: Request,
+  req: Request<{}, {}, {}, { search?: string }>,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const userId = (req.user as { id?: number } | undefined)?.id;
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
+    const userId = req.user.id;
+    const { search } = req.query;
 
     const result = await pool.query(
       `select google_refresh, google_access from users where id = $1`,
@@ -399,7 +404,11 @@ export const getDriveController = async (
         .json({ message: "Google account is not connected" });
     }
 
-    const files = await getDriveFiles(user.google_access, user.google_refresh);
+    const files = await getDriveFiles(
+      user.google_access,
+      user.google_refresh,
+      search,
+    );
 
     return res.status(200).json({ message: "Drive files", data: files });
   } catch (error) {
@@ -407,3 +416,93 @@ export const getDriveController = async (
   }
 };
 // drive
+
+import fs from "fs";
+
+export const uploadDriveFileController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+    if (!req.file) throw apiErrors.badRequest("No file provided");
+
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `select google_refresh, google_access from users where id = $1`,
+      [userId],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.google_access) {
+      return res
+        .status(400)
+        .json({ message: "Google account is not connected" });
+    }
+
+    const file = await uploadDriveFile(
+      user.google_access,
+      user.google_refresh,
+      req.file.path,
+      req.file.originalname,
+      req.file.mimetype,
+    );
+
+    fs.unlink(req.file.path, () => {}); // чистим временный файл, ошибку игнорируем
+
+    return res.status(201).json({ message: "File uploaded", data: file });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createDriveFolderController = async (
+  req: Request<{}, {}, { name: string }>,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
+    const { name } = req.body;
+    if (!name?.trim()) {
+      throw apiErrors.badRequest("Folder name is required");
+    }
+
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `select google_refresh, google_access from users where id = $1`,
+      [userId],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.google_access) {
+      return res
+        .status(400)
+        .json({ message: "Google account is not connected" });
+    }
+
+    const folder = await createDriveFolder(
+      user.google_access,
+      user.google_refresh,
+      name.trim(),
+    );
+
+    return res.status(201).json({ message: "Folder created", data: folder });
+  } catch (error) {
+    next(error);
+  }
+};
