@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
+  createCalendarEventController,
   createDriveFolderController,
+  deleteCalendarEventController,
   forgotPasswordController,
   getCalendarController,
   getDriveController,
@@ -12,6 +14,7 @@ import {
   registerController,
   resetPasswordController,
   testEmailController,
+  updateCalendarEventController,
   updateProfileController,
   uploadDriveFileController,
   verifyPasswordController,
@@ -42,8 +45,8 @@ router.get(
       "profile",
       "email",
       "https://www.googleapis.com/auth/gmail.readonly", // доступ для гмаил
-      "https://www.googleapis.com/auth/calendar.readonly", // доступ для календарь
-      "https://www.googleapis.com/auth/drive.readonly", // доступ для драйв
+      "https://www.googleapis.com/auth/calendar", // полный доступ: чтение + создание + удаление
+      "https://www.googleapis.com/auth/drive", // доступ для драйв
     ],
     accessType: "offline",
     prompt: "consent",
@@ -68,6 +71,9 @@ router.post("/reset-password", resetPasswordController);
 // router.get("/google-me")
 router.get("/test-email", testEmailController);
 router.get("/calendar", authMiddleware, getCalendarController); // api/auth/calendar
+router.post("/calendar", authMiddleware, createCalendarEventController);
+router.delete("/calendar/:id", authMiddleware, deleteCalendarEventController);
+router.patch("/calendar/:id", authMiddleware, updateCalendarEventController);
 router.get("/drive", authMiddleware, getDriveController);
 router.post(
   "/upload",

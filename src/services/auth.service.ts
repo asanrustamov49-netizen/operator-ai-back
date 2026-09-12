@@ -286,6 +286,136 @@ export const getCalendarEvents = async (
   return result.data.items || [];
 };
 
+// ==== добавить в auth.service.ts, рядом с getCalendarEvents ====
+
+export interface ICreateCalendarEvent {
+  summary: string;
+  description?: string | undefined;
+  startDateTime: string;
+  endDateTime: string;
+  timeZone?: string | undefined;
+}
+
+export const createCalendarEvent = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  event: ICreateCalendarEvent,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const result = await calendar.events.insert({
+    calendarId: "primary",
+    requestBody: {
+      summary: event.summary,
+      description: event.description ?? null,
+      start: {
+        dateTime: event.startDateTime,
+        timeZone: event.timeZone ?? "UTC",
+      },
+      end: {
+        dateTime: event.endDateTime,
+        timeZone: event.timeZone ?? "UTC",
+      },
+    },
+  });
+
+  return result.data;
+};
+
+// ==== добавить в auth.service.ts, рядом с createCalendarEvent/deleteCalendarEvent ====
+
+export interface IUpdateCalendarEvent {
+  summary?: string | undefined;
+  description?: string | undefined;
+  startDateTime?: string | undefined; // ISO 8601
+  endDateTime?: string | undefined; // ISO 8601
+  timeZone?: string | undefined;
+}
+
+export const updateCalendarEvent = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  eventId: string,
+  updates: IUpdateCalendarEvent,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth });
+
+  // patch обновляет только переданные поля, остальные остаются как были —
+  // в отличие от update, который потребовал бы прислать весь объект события целиком
+  const result = await calendar.events.patch({
+    calendarId: "primary",
+    eventId,
+    requestBody: {
+      ...(updates.summary !== undefined && { summary: updates.summary }),
+      ...(updates.description !== undefined && {
+        description: updates.description ?? null,
+      }),
+      ...(updates.startDateTime !== undefined && {
+        start: {
+          dateTime: updates.startDateTime,
+          timeZone: updates.timeZone ?? "UTC",
+        },
+      }),
+      ...(updates.endDateTime !== undefined && {
+        end: {
+          dateTime: updates.endDateTime,
+          timeZone: updates.timeZone ?? "UTC",
+        },
+      }),
+    },
+  });
+
+  return result.data;
+};
+
+export const deleteCalendarEvent = async (
+  accessToken: string,
+  refreshToken: string | undefined,
+  eventId: string,
+) => {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    process.env.GOOGLE_CALLBACK_URL!,
+  );
+
+  auth.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth });
+
+  await calendar.events.delete({
+    calendarId: "primary",
+    eventId,
+  });
+
+  return { deleted: true, eventId };
+};
+
 // drive
 export const getDriveFiles = async (
   accessToken: string,
@@ -342,7 +472,7 @@ export const uploadDriveFile = async (
 
   auth.setCredentials({
     access_token: accessToken,
-    refresh_token: refreshToken ?? null
+    refresh_token: refreshToken ?? null,
   });
 
   const drive = google.drive({ version: "v3", auth });

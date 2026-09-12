@@ -10,6 +10,7 @@ import {
   refreshService,
   registerService,
   resetPasswordService,
+  updateCalendarEvent,
   updateProfileService,
   uploadDriveFile,
   verifyPasswordService,
@@ -370,6 +371,180 @@ export const getCalendarController = async (
     );
 
     return res.status(200).json({ message: "Calendar events", data: events });
+  } catch (error) {
+    next(error);
+  }
+};
+
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+} from "../services/auth.service";
+
+// достаём google-токены пользователя один раз, чтобы не дублировать
+// один и тот же select в обоих контроллерах
+const getGoogleTokens = async (userId: number) => {
+  const userRow = await pool.query(
+    `select google_access, google_refresh from users where id = $1`,
+    [userId],
+  );
+
+  const user = userRow.rows[0];
+
+  if (!user?.google_access) {
+    throw apiErrors.badRequest("Google account is not connected");
+  }
+
+  return {
+    accessToken: user.google_access as string,
+    refreshToken: user.google_refresh as string | undefined,
+  };
+};
+
+export const createCalendarEventController = async (
+  req: Request<
+    {},
+    {},
+    {
+      summary: string;
+      description?: string;
+      startDateTime: string;
+      endDateTime: string;
+      timeZone?: string;
+    }
+  >,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (req.user as { id?: number } | undefined)?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { summary, description, startDateTime, endDateTime, timeZone } =
+      req.body;
+
+    if (!summary || !startDateTime || !endDateTime) {
+      throw apiErrors.badRequest(
+        "summary, startDateTime and endDateTime are required",
+      );
+    }
+
+    const { accessToken, refreshToken } = await getGoogleTokens(userId);
+
+    const event = await createCalendarEvent(accessToken, refreshToken, {
+      summary,
+      description,
+      startDateTime,
+      endDateTime,
+      timeZone,
+    });
+
+    res.status(201).json({
+      message: "Event created",
+      data: event,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCalendarEventController = async (
+  req: Request<{ eventId: string }>,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (req.user as { id?: number } | undefined)?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { eventId } = req.params;
+
+    if (!eventId) {
+      throw apiErrors.badRequest("eventId is required");
+    }
+
+    const { accessToken, refreshToken } = await getGoogleTokens(userId);
+
+    const result = await deleteCalendarEvent(
+      accessToken,
+      refreshToken,
+      eventId,
+    );
+
+    res.status(200).json({
+      message: "Event deleted",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCalendarEventController = async (
+  req: Request<
+    { eventId: string },
+    {},
+    {
+      summary?: string;
+      description?: string;
+      startDateTime?: string;
+      endDateTime?: string;
+      timeZone?: string;
+    }
+  >,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (req.user as { id?: number } | undefined)?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { eventId } = req.params;
+
+    if (!eventId) {
+      throw apiErrors.badRequest("eventId is required");
+    }
+
+    const { summary, description, startDateTime, endDateTime, timeZone } =
+      req.body;
+
+    if (!summary && !description && !startDateTime && !endDateTime) {
+      throw apiErrors.badRequest(
+        "Nothing to update — provide at least one field",
+      );
+    }
+
+    const { accessToken, refreshToken } = await getGoogleTokens(userId);
+
+    const event = await updateCalendarEvent(
+      accessToken,
+      refreshToken,
+      eventId,
+      {
+        summary,
+        description,
+        startDateTime,
+        endDateTime,
+        timeZone,
+      },
+    );
+
+    res.status(200).json({
+      message: "Event updated",
+      data: event,
+    });
   } catch (error) {
     next(error);
   }
