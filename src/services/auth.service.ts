@@ -173,6 +173,23 @@ export const updateProfileService = async (
   return res.rows[0];
 };
 
+export const deleteAccountService = async (id: number) => {
+  const res = await pool.query(
+    `
+      delete from users
+      where id = $1
+      returning id
+    `,
+    [id],
+  );
+
+  if (!res.rows[0]) {
+    throw apiErrors.notFound("User not found");
+  }
+
+  return res.rows[0];
+};
+
 export const forgotPasswordService = async (email: string) => {
   const res = await pool.query(
     `
@@ -291,6 +308,7 @@ export const getCalendarEvents = async (
 export interface ICreateCalendarEvent {
   summary: string;
   description?: string | undefined;
+  location?: string | undefined;
   startDateTime: string;
   endDateTime: string;
   timeZone?: string | undefined;
@@ -319,6 +337,7 @@ export const createCalendarEvent = async (
     requestBody: {
       summary: event.summary,
       description: event.description ?? null,
+      location: event.location ?? null,
       start: {
         dateTime: event.startDateTime,
         timeZone: event.timeZone ?? "UTC",
@@ -338,6 +357,7 @@ export const createCalendarEvent = async (
 export interface IUpdateCalendarEvent {
   summary?: string | undefined;
   description?: string | undefined;
+  location?: string | undefined;
   startDateTime?: string | undefined; // ISO 8601
   endDateTime?: string | undefined; // ISO 8601
   timeZone?: string | undefined;
@@ -371,6 +391,9 @@ export const updateCalendarEvent = async (
       ...(updates.summary !== undefined && { summary: updates.summary }),
       ...(updates.description !== undefined && {
         description: updates.description ?? null,
+      }),
+      ...(updates.location !== undefined && {
+        location: updates.location ?? null,
       }),
       ...(updates.startDateTime !== undefined && {
         start: {

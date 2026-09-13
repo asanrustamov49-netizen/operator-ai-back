@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import {
   createDriveFolder,
+  deleteAccountService,
   forgotPasswordService,
   getCalendarEvents,
   getDriveFiles,
@@ -157,10 +158,16 @@ export const updateProfileController = async (
   next: NextFunction,
 ) => {
   try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
     const id = Number(req.params.id);
 
     if (Number.isNaN(id)) {
       return next(apiErrors.badRequest("Invalid user id"));
+    }
+
+    if (id !== req.user.id) {
+      return next(apiErrors.forbidden("You can only update your own profile"));
     }
 
     const body = req.body;
@@ -175,6 +182,26 @@ export const updateProfileController = async (
     res.status(200).json({
       message: "Profile updated successfully",
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteAccountController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw apiErrors.unauthorized("Unauthorized");
+
+    await deleteAccountService(req.user.id);
+
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      message: "Account deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -309,11 +336,7 @@ export const getGmailController = async (
       nextPageToken,
       resultSizeEstimate,
     });
-  } catch (error: any) {
-    console.log("GMAIL ERROR:");
-    console.log(error.response?.data);
-    console.log(error.message);
-
+  } catch (error) {
     next(error);
   }
 };
@@ -408,6 +431,7 @@ export const createCalendarEventController = async (
     {
       summary: string;
       description?: string;
+      location?: string;
       startDateTime: string;
       endDateTime: string;
       timeZone?: string;
@@ -424,7 +448,7 @@ export const createCalendarEventController = async (
       return;
     }
 
-    const { summary, description, startDateTime, endDateTime, timeZone } =
+    const { summary, description, location, startDateTime, endDateTime, timeZone } =
       req.body;
 
     if (!summary || !startDateTime || !endDateTime) {
@@ -438,6 +462,7 @@ export const createCalendarEventController = async (
     const event = await createCalendarEvent(accessToken, refreshToken, {
       summary,
       description,
+      location,
       startDateTime,
       endDateTime,
       timeZone,
@@ -495,6 +520,7 @@ export const updateCalendarEventController = async (
     {
       summary?: string;
       description?: string;
+      location?: string;
       startDateTime?: string;
       endDateTime?: string;
       timeZone?: string;
@@ -517,10 +543,10 @@ export const updateCalendarEventController = async (
       throw apiErrors.badRequest("eventId is required");
     }
 
-    const { summary, description, startDateTime, endDateTime, timeZone } =
+    const { summary, description, location, startDateTime, endDateTime, timeZone } =
       req.body;
 
-    if (!summary && !description && !startDateTime && !endDateTime) {
+    if (!summary && !description && !location && !startDateTime && !endDateTime) {
       throw apiErrors.badRequest(
         "Nothing to update — provide at least one field",
       );
@@ -535,6 +561,7 @@ export const updateCalendarEventController = async (
       {
         summary,
         description,
+        location,
         startDateTime,
         endDateTime,
         timeZone,

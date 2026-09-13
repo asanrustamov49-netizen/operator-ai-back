@@ -1,4 +1,5 @@
 import { pool } from "../plugins/pg";
+import { createNotificationService } from "./notifications.service";
 
 interface IBody {
   title: string;
@@ -15,7 +16,11 @@ export const postNoteService = async (body: IBody, userId: number) => {
     [body.title, body.content, userId],
   );
 
-  return result.rows[0];
+  const note = result.rows[0];
+
+  await createNotificationService(userId, "note", "New note created", note.title);
+
+  return note;
 };
 export const getNotesService = async (userId: number, search?: string) => {
   if (search && search.trim()) {

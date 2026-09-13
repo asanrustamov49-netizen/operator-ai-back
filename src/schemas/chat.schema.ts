@@ -13,3 +13,7 @@ export const chatSchema = z.object({
     )
     .optional(),
 });
+
+export const sessionMessageSchema = z.object({
+  message: z.string().min(1).max(4000),
+});

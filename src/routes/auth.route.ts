@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createCalendarEventController,
   createDriveFolderController,
+  deleteAccountController,
   deleteCalendarEventController,
   forgotPasswordController,
   getCalendarController,
@@ -19,7 +20,7 @@ import {
   uploadDriveFileController,
   verifyPasswordController,
 } from "../controllers/auth.controller";
-import { uploadMiddleware } from "../middlewares/upload";
+import { uploadMiddleware, avatarUploadMiddleware } from "../middlewares/upload";
 import { authMiddleware } from "../middlewares/auth";
 import passport from "passport";
 import { validate } from "../middlewares/validation";
@@ -29,12 +30,12 @@ import { loginSchema, registerSchema } from "../schemas/auth.schema";
 const router = Router();
 router.post(
   "/register",
-  uploadMiddleware.single("avatar"),
+  avatarUploadMiddleware.single("avatar"),
   validate(registerSchema),
   registerController,
 );
 router.post("/login", validate(loginSchema), loginController);
-router.post("/refresh", authMiddleware, refreshController);
+router.post("/refresh", refreshController);
 router.get("/profile", authMiddleware, profileController);
 router.post("/logout", logoutController);
 router.get("/gmail", authMiddleware, getGmailController); // gmail get
@@ -62,18 +63,28 @@ router.get(
 );
 router.patch(
   "/profile/:id",
-  uploadMiddleware.single("avatar"),
+  authMiddleware,
+  avatarUploadMiddleware.single("avatar"),
   updateProfileController,
 );
+router.delete("/account", authMiddleware, deleteAccountController);
 router.post("/forgot-password", forgotPasswordController);
 router.post("/verify-password", verifyPasswordController);
 router.post("/reset-password", resetPasswordController);
 // router.get("/google-me")
-router.get("/test-email", testEmailController);
+router.get("/test-email", authMiddleware, testEmailController);
 router.get("/calendar", authMiddleware, getCalendarController); // api/auth/calendar
 router.post("/calendar", authMiddleware, createCalendarEventController);
-router.delete("/calendar/:id", authMiddleware, deleteCalendarEventController);
-router.patch("/calendar/:id", authMiddleware, updateCalendarEventController);
+router.delete(
+  "/calendar/:eventId",
+  authMiddleware,
+  deleteCalendarEventController,
+);
+router.patch(
+  "/calendar/:eventId",
+  authMiddleware,
+  updateCalendarEventController,
+);
 router.get("/drive", authMiddleware, getDriveController);
 router.post(
   "/upload",

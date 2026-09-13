@@ -4,6 +4,9 @@ import { logger } from "./middlewares/logger";
 import cors from "cors";
 import authRouter from "./routes/auth.route";
 import notesRouter from "./routes/notes.route";
+import tasksRouter from "./routes/tasks.route";
+import clientsRouter from "./routes/clients.route";
+import notificationsRouter from "./routes/notifications.route";
 import chatRouter from "./routes/chat.route";
 import { errorHandler } from "./middlewares/errorHandler";
 import cookieParser from "cookie-parser";
@@ -27,6 +30,9 @@ const createApi = () => {
   app.use("/auth", authRouter);
   app.use("/chat", chatRouter);
   app.use("/notes", notesRouter);
+  app.use("/tasks", tasksRouter);
+  app.use("/clients", clientsRouter);
+  app.use("/notifications", notificationsRouter);
 
   app.use(errorHandler);
   return app;
