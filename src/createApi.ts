@@ -8,6 +8,8 @@ import tasksRouter from "./routes/tasks.route";
 import clientsRouter from "./routes/clients.route";
 import notificationsRouter from "./routes/notifications.route";
 import chatRouter from "./routes/chat.route";
+import briefingRouter from "./routes/briefing.route";
+import commandRouter from "./routes/command.route";
 import { errorHandler } from "./middlewares/errorHandler";
 import cookieParser from "cookie-parser";
 import passport from "passport";
@@ -33,6 +35,8 @@ const createApi = () => {
   app.use("/tasks", tasksRouter);
   app.use("/clients", clientsRouter);
   app.use("/notifications", notificationsRouter);
+  app.use("/briefing", briefingRouter);
+  app.use("/command", commandRouter);
 
   app.use(errorHandler);
   return app;

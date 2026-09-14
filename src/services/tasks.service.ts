@@ -1,5 +1,8 @@
 import { pool } from "../plugins/pg";
-import { createNotificationService } from "./notifications.service";
+import {
+  createNotificationService,
+  createNotificationOnceService,
+} from "./notifications.service";
 
 interface IBody {
   title: string;
@@ -8,6 +11,29 @@ interface IBody {
   status?: string;
   due_date?: string | null;
 }
+
+// Если у пользователя осталось ровно одно незавершённое задание —
+// присылаем напоминание закончить его. Дедуп через createNotificationOnceService
+// не даёт заспамить одним и тем же напоминанием при каждом мелком изменении.
+const notifyIfOneTaskLeft = async (userId: number) => {
+  const remaining = await pool.query(
+    `
+      select title from tasks
+      where user_id = $1 and status != 'completed'
+    `,
+    [userId],
+  );
+
+  if (remaining.rows.length === 1) {
+    await createNotificationOnceService(
+      userId,
+      "task",
+      "One task left",
+      `You have one task left — "${remaining.rows[0].title}". Finish it up!`,
+      180,
+    );
+  }
+};
 
 export const postTaskService = async (body: IBody, userId: number) => {
   const result = await pool.query(
@@ -34,6 +60,7 @@ export const postTaskService = async (body: IBody, userId: number) => {
     "New task created",
     task.title,
   );
+  await notifyIfOneTaskLeft(userId);
 
   return task;
 };
@@ -98,6 +125,8 @@ export const deleteTaskService = async (id: number, userId: number) => {
     [id, userId],
   );
 
+  if (result.rows[0]) await notifyIfOneTaskLeft(userId);
+
   return result.rows[0];
 };
 
@@ -123,6 +152,8 @@ export const updateTaskService = async (
       userId,
     ],
   );
+
+  if (result.rows[0]) await notifyIfOneTaskLeft(userId);
 
   return result.rows[0];
 };
@@ -152,6 +183,8 @@ export const updateTaskStatusService = async (
       task.title,
     );
   }
+
+  if (task) await notifyIfOneTaskLeft(userId);
 
   return task;
 };

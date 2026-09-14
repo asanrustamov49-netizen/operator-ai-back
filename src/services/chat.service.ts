@@ -17,6 +17,11 @@ import {
   toggleFavoriteService,
   updateNoteService,
 } from "./notes.service";
+import {
+  createNotificationService,
+  createNotificationOnceService,
+} from "./notifications.service";
+import { apiErrors } from "../utils/apiErrors";
 
 interface IChatMessage {
   role: "user" | "assistant";
@@ -47,14 +52,20 @@ General conversation (things people commonly ask any AI assistant):
 Language:
 - Always reply in the same language the user's message is written in. If they write in Russian, answer in Russian; if in English, answer in English; if they mix languages, mirror whichever language dominates their message.
 
+Answer quality:
+- Be accurate and specific — give a direct, correct answer first, then the supporting detail. Never pad a short question with a long answer, and never guess at facts you're not sure about; say so instead.
+- Structure longer answers so they're easy to scan: short paragraphs, and bullet or numbered lists for steps, options, or multiple items instead of one dense block of text.
+- You may use light Markdown (**bold** for key terms, bullet points, numbered steps) — it will be rendered nicely for the user.
+- You can use an emoji here and there to add warmth (e.g. a ✅ when something is done, a 📅 next to a date, a 💡 for a tip) — never more than one or two per message, and skip them entirely for serious, technical, or formal topics.
+- Keep answers concise and conversational; don't restate the user's question back at them.
+
 Rules:
 - Only call a tool when the user's request actually requires that data.
 - If a tool result contains an "error" field, explain the problem to the user in plain language (e.g. "your Google account isn't connected yet") instead of retrying the same tool.
 - Never call the same tool more than once with the same arguments in a single turn.
 - Before creating a calendar event, make sure you have a clear title and start/end time; ask the user if something important is missing.
 - Before deleting or updating a calendar event, you need its eventId. If you don't already have it from earlier in the conversation, call get_calendar_events first to find the right one, and confirm with the user which event to act on if there's any ambiguity.
-- Before updating, deleting, or favoriting a note, you need its noteId. If you don't already have it, call get_notes first to find the right one, and confirm with the user if there's any ambiguity.
-- Keep answers concise and conversational.`;
+- Before updating, deleting, or favoriting a note, you need its noteId. If you don't already have it, call get_notes first to find the right one, and confirm with the user if there's any ambiguity.`;
 
 const MAX_TOOL_ITERATIONS = 6;
 
@@ -204,21 +215,34 @@ const runTool = async (userId: number, name: string, input: any) => {
     const user = userRow.rows[0];
 
     switch (name) {
-      case "get_gmail_messages":
+      case "get_gmail_messages": {
         if (!user?.google_access)
           return { error: "Google account is not connected" };
-        return await getGmailMessages(
+        const gmailResult = await getGmailMessages(
           user.google_access,
           user.google_refresh,
           userId,
         );
+        const unreadCount = gmailResult.messages.filter(
+          (m) => m.isUnread,
+        ).length;
+        if (unreadCount > 0) {
+          await createNotificationOnceService(
+            userId,
+            "gmail",
+            "New emails",
+            `You have ${unreadCount} unread email${unreadCount > 1 ? "s" : ""} in your inbox.`,
+          );
+        }
+        return gmailResult;
+      }
 
       case "get_calendar_events":
         if (!user?.google_access)
           return { error: "Google account is not connected" };
         return await getCalendarEvents(user.google_access, user.google_refresh);
 
-      case "create_calendar_event":
+      case "create_calendar_event": {
         if (!user?.google_access)
           return { error: "Google account is not connected" };
         if (!input?.summary || !input?.startDateTime || !input?.endDateTime) {
@@ -227,23 +251,39 @@ const runTool = async (userId: number, name: string, input: any) => {
               "summary, startDateTime and endDateTime are required to create an event",
           };
         }
-        return await createCalendarEvent(
+        const createdEvent = await createCalendarEvent(
           user.google_access,
           user.google_refresh,
           input,
         );
+        await createNotificationService(
+          userId,
+          "calendar",
+          "Event created",
+          input.summary,
+        );
+        return createdEvent;
+      }
 
-      case "delete_calendar_event":
+      case "delete_calendar_event": {
         if (!user?.google_access)
           return { error: "Google account is not connected" };
         if (!input?.eventId) {
           return { error: "eventId is required to delete an event" };
         }
-        return await deleteCalendarEvent(
+        const deletedEvent = await deleteCalendarEvent(
           user.google_access,
           user.google_refresh,
           input.eventId,
         );
+        await createNotificationService(
+          userId,
+          "calendar",
+          "Event deleted",
+          "",
+        );
+        return deletedEvent;
+      }
 
       case "get_drive_files":
         if (!user?.google_access)
@@ -351,10 +391,17 @@ export const sendChatMessage = async (
       console.error("[chat] Gemini API call failed:", error);
 
       if (error?.status === 429 || error?.code === 429) {
-        return "Дневной лимит запросов к ИИ на текущем тарифе исчерпан. Попробуйте немного позже — обычно лимит обновляется в течение суток.";
+        // Пробрасываем как настоящую HTTP-ошибку 429, а не текст в чате —
+        // фронтенд ловит именно этот статус и показывает модалку лимита,
+        // как это делают настоящие AI-чаты (ChatGPT, Claude и т.д.).
+        throw apiErrors.tooManyRequests(
+          "You've reached your daily AI message limit. Please come back tomorrow — your limit resets every 24 hours.",
+        );
       }
 
-      return "Sorry, something went wrong while I was thinking. Please try again in a moment.";
+      throw apiErrors.serviceUnavailable(
+        "Sorry, something went wrong while I was thinking. Please try again in a moment.",
+      );
     }
 
     const functionCalls = response.functionCalls;

@@ -19,6 +19,10 @@ import {
 import { apiErrors } from "../utils/apiErrors";
 import { getGmailMessages } from "../services/gmail.service";
 import { pool } from "../plugins/pg";
+import {
+  createNotificationService,
+  createNotificationOnceService,
+} from "../services/notifications.service";
 
 export const registerController = async (
   req: Request<
@@ -330,6 +334,21 @@ export const getGmailController = async (
         options,
       );
 
+    // Уведомление о непрочитанных письмах создаём только на "чистом" запросе
+    // первой страницы инбокса (без поиска/фильтров/пагинации) — иначе оно бы
+    // всплывало при каждом клике по вкладке "Sent" или переходе на страницу 2.
+    if (!search && !label && !pageToken) {
+      const unreadCount = messages.filter((m) => m.isUnread).length;
+      if (unreadCount > 0) {
+        await createNotificationOnceService(
+          userId,
+          "gmail",
+          "New emails",
+          `You have ${unreadCount} unread email${unreadCount > 1 ? "s" : ""} in your inbox.`,
+        );
+      }
+    }
+
     return res.status(200).json({
       message: "Gmail messages",
       data: messages,
@@ -468,6 +487,8 @@ export const createCalendarEventController = async (
       timeZone,
     });
 
+    await createNotificationService(userId, "calendar", "Event created", summary);
+
     res.status(201).json({
       message: "Event created",
       data: event,
@@ -503,6 +524,8 @@ export const deleteCalendarEventController = async (
       refreshToken,
       eventId,
     );
+
+    await createNotificationService(userId, "calendar", "Event deleted", "");
 
     res.status(200).json({
       message: "Event deleted",

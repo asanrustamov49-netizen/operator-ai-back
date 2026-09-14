@@ -1,6 +1,12 @@
 import { pool } from "../plugins/pg";
 
-export type NotificationType = "task" | "client" | "note";
+export type NotificationType =
+  | "task"
+  | "client"
+  | "note"
+  | "gmail"
+  | "calendar"
+  | "system";
 
 export const createNotificationService = async (
   userId: number,
@@ -18,6 +24,33 @@ export const createNotificationService = async (
   );
 
   return result.rows[0];
+};
+
+// Для "шумных" источников (непрочитанные письма, авто-напоминания) —
+// не создаёт новое уведомление, если такое же (по типу+заголовку) уже
+// было создано недавно, чтобы не заспамить пользователя дублями.
+export const createNotificationOnceService = async (
+  userId: number,
+  type: NotificationType,
+  title: string,
+  message: string = "",
+  dedupWindowMinutes: number = 60,
+) => {
+  const existing = await pool.query(
+    `
+      select id from notifications
+      where user_id = $1
+        and type = $2
+        and title = $3
+        and created_at > now() - ($4 || ' minutes')::interval
+      limit 1
+    `,
+    [userId, type, title, dedupWindowMinutes],
+  );
+
+  if (existing.rows[0]) return null;
+
+  return createNotificationService(userId, type, title, message);
 };
 
 export const getNotificationsService = async (userId: number) => {
